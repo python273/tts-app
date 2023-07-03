@@ -1,0 +1,30 @@
+version: '3'
+
+services:
+  nginx:
+    restart: unless-stopped
+    image: nginx:alpine
+    volumes:
+    - ./nginx.conf:/etc/nginx/nginx.conf
+    - ./../app/:/var/www/
+    labels:
+      - "traefik.http.routers.tts-app-http.rule=Host(`tts.cns.wtf`)"
+      - "traefik.http.routers.tts-app-http.middlewares=tts-app-secure-headers"
+
+      - "traefik.http.routers.tts-app-https.rule=Host(`tts.cns.wtf`)"
+      - "traefik.http.routers.tts-app-https.tls=true"
+      - "traefik.http.routers.tts-app-https.tls.certresolver=le"
+      - "traefik.http.routers.tts-app-https.middlewares=tts-app-secure-headers"
+
+      - "traefik.http.middlewares.tts-app-secure-headers.headers.framedeny=true"
+      - "traefik.http.middlewares.tts-app-secure-headers.headers.sslredirect=true"
+      - "traefik.http.middlewares.tts-app-secure-headers.headers.browserXssFilter=true"
+      - "traefik.http.middlewares.tts-app-secure-headers.headers.contentTypeNosniff=true"
+      - "traefik.http.middlewares.tts-app-secure-headers.headers.stsSeconds=2592000"
+      - "traefik.http.middlewares.tts-app-secure-headers.headers.stsPreload=true"
+      - "traefik.http.middlewares.tts-app-secure-headers.headers.referrerPolicy=strict-origin-when-cross-origin"
+
+networks:
+  default:
+    external:
+      name: ${NETWORK:-traefik-net}

@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset='utf-8'>
+	<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+	<title>Text To Speech</title>
+
+	<link rel='icon' type='image/png' href='favicon.png'>
+	<link rel='stylesheet' href='narrator.css'>
+    <script type="text/javascript" src='narrator.js'></script>
+
+    <style type="text/css">
+    * {
+        padding: 0;
+        margin: 0;
+    }
+    :root {
+        --bg-color: #fff;
+        --color: rgb(0, 0, 0);
+        --border: rgb(173, 182, 195);
+        --navbar-shadow: #00000012;
+    }
+    html, body, textarea, input, button, select {
+        background-color: var(--bg-color);
+        color: var(--color);
+        border-color: var(--border);
+    }
+    button, input, select, textarea {
+        padding: 0.1em 0.25em;
+        border-radius: 4px;
+        border: 1px solid var(--border);
+    }
+
+    p, dl, multicol {
+        margin-block-start: 1em;
+        margin-block-end: 1em;
+    }
+    .navbar {
+        position: sticky;
+        top: 0px;
+        display: flex;
+        gap: 1em;
+        align-items: center;
+        background-color: var(--bg-color);
+        margin: 0 -10px;
+        padding: 10px 10px;
+        border-radius: 0 0 5px 5px;
+        box-shadow: 0px 10px 10px var(--navbar-shadow);
+        z-index: 99999;
+    }
+    body {
+        line-height: 1.4;
+        padding: 0 10px;
+        font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol","Noto Color Emoji";
+    }
+    h1 {
+        line-height:1.2;
+        font-size: 1.1em;
+    }
+    textarea {
+        width: 100%;
+        height: calc(100vh - 95px);
+        margin-top: 10px;
+        resize: none;
+    }
+    .container {
+        margin: 0 auto 25px auto;
+        max-width: 650px;
+    }
+    #logo {
+        text-decoration: none;
+        color: inherit;
+    }
+    #rate {
+        width: 3em;
+    }
+    </style>
+</head>
+
+<body>
+<div class="container">
+    <div class="navbar">
+        <div style="margin-right: auto;"><a id="logo" href="/"><h1>Text to Speech</h1></a></div>
+        <div>
+            <select id="lang"></select>
+            <select id="voice"></select>
+            <input id="rate" type="number" min="0.5" step="0.1" value="1">
+        </div>
+        <div id="prevControls"><button id="startBtn">play</button></div>
+        <div id="ttsControls" style="display: none;">
+            <button id="prevBtn">&nbsp;&lt;&nbsp;</button>
+            <button id="nextBtn">&nbsp;&gt;&nbsp;</button>
+            <button id="stopBtn">stop</button>
+            <button id="playBtn">play</button>
+        </div>
+        <div>
+            <input
+                class="c-pointer"
+                id="dark-theme-checkbox"
+                type="checkbox"
+                title="dark theme"
+            />
+            <label for="dark-theme-checkbox" class="c-pointer">☾</label>
+        </div>
+    </div>
+    <textarea
+        id="ta"
+        placeholder="Paste text"
+        utocomplete="off"
+        autocorrect="off"
+        autocapitalize="off"
+        spellcheck="false"
+    ></textarea>
+    <div id="out" style="display: none;"></div>
+</div>
+
+<style id="dark-theme-style"></style>
+<script>
+if (!("cfg-dark-theme" in localStorage)) {
+    const val = (
+        window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+    ) ? 1 : 0;
+    localStorage["cfg-dark-theme"] = val;
+}
+
+let darkTheme = localStorage["cfg-dark-theme"] === "1";
+
+const darkThemeCheckboxEl = document.getElementById("dark-theme-checkbox");
+darkThemeCheckboxEl.addEventListener("change", () => {
+    darkTheme = darkThemeCheckboxEl.checked;
+    updateDarkThemeStyle();
+});
+window.addEventListener('storage', (event) => {
+    if (event.key !== "cfg-dark-theme") return;
+    darkTheme = localStorage["cfg-dark-theme"] === "1";
+    updateDarkThemeStyle();
+});
+
+const updateDarkThemeStyle = () => {
+    console.log('darkTheme', darkTheme);
+    localStorage["cfg-dark-theme"] = darkTheme ? 1 : 0;
+    darkThemeCheckboxEl.checked = darkTheme;
+    const el = document.getElementById("dark-theme-style");
+    if (!darkTheme) {
+        el.innerHTML = '';
+        return;
+    }
+    el.innerHTML = `
+    :root {
+        --bg-color: #12161d;
+        --color: #fff;
+        --border: rgb(221, 221, 221);
+        --navbar-shadow: rgba(255, 255, 255, 0.213);
+    }
+    .narrating {
+        background-color: #c3e6ff1a !important;
+    }
+    .narrate-word-highlight {
+        border-bottom-color: var(--border);
+    }
+    `;
+}
+updateDarkThemeStyle();
+
+const langEl = document.getElementById('lang');
+const voiceEl = document.getElementById('voice');
+const rateEl = document.getElementById('rate');
+const taEl = document.getElementById('ta');
+const outEl = document.getElementById('out');
+const ttsControlsEl = document.getElementById('ttsControls');
+const prevControlsEl = document.getElementById('prevControls');
+
+let currentNarrator;
+
+function updateLangs() {
+    let langs = new Set();
+    window.speechSynthesis.getVoices().forEach(voice => {
+        langs.add(voice.lang);
+    });
+    langs = Array.from(langs).sort();
+    langs.unshift(langs.splice(langs.indexOf('ru-RU'), 1)[0]);
+    langs.unshift(langs.splice(langs.indexOf('en-US'), 1)[0]);
+
+    for (let i of langs) {
+        const opt = document.createElement("option");
+        opt.value = i;
+        opt.innerText = i;
+        langEl.appendChild(opt);
+    }
+    langEl.value = localStorage.getItem('lang') || 'en-US';
+}
+
+function updateVoices() {
+    voiceEl.innerHTML = '';
+
+    let voices = Array.from(window.speechSynthesis.getVoices())
+        .filter(i => i.lang === langEl.value)
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+    for (let i of voices) {
+        let opt = document.createElement("option");
+        opt.value = i.voiceURI;
+        opt.innerText = i.name;
+        voiceEl.appendChild(opt);
+    }
+
+    const savedVoice = localStorage.getItem('voice');
+    const voice = voices.find(i => i.voiceURI === savedVoice);
+    if (voice) {
+        voiceEl.value = savedVoice;
+    } else {
+        voiceEl.value = voices[0].voiceURI;
+    }
+
+    if (currentNarrator) {
+        currentNarrator.setVoice(voiceEl.value);
+    }
+}
+langEl.addEventListener('change', () => {
+    localStorage.setItem('lang', langEl.value);
+    updateVoices();
+});
+
+voiceEl.addEventListener('change', () => {
+    localStorage.setItem('voice', voiceEl.value);
+
+    if (currentNarrator) {
+        currentNarrator.setVoice(voiceEl.value);
+    }
+});
+
+rateEl.value = localStorage.getItem('rate') || '2';
+rateEl.addEventListener('change', () => {
+    localStorage.setItem('rate', rateEl.value);
+    if (currentNarrator) {
+        currentNarrator.setRate(parseFloat(rateEl.value));
+    }
+});
+
+const intervalCheckVoicesLoadedId = setInterval(() => {
+    // seems like takes some time to load voices
+    if (window.speechSynthesis.getVoices().length !== 0) {
+        updateLangs();
+        updateVoices();
+        clearInterval(intervalCheckVoicesLoadedId);
+    }
+}, 20);
+
+document.getElementById('startBtn').addEventListener('click', async function () {
+    const text = taEl.value.trim();
+    if (!text) { return; }
+
+    taEl.style.display = 'none';
+    prevControlsEl.style.display = 'none';
+    outEl.innerHTML = '';
+
+    for(i of text.split('\n')) {
+        if (!i) continue;
+
+        const pEl = document.createElement('p');
+        pEl.innerText = i.trim();
+        outEl.appendChild(pEl);
+    }
+
+    outEl.style.display = 'block';
+    ttsControlsEl.style.display = 'block';
+
+    currentNarrator = new Narrator(
+		window,
+		outEl,
+		new Promise((resolve) => {
+            resolve(langEl.value);
+        })
+	);
+
+    await currentNarrator.start({
+        rate: parseFloat(rateEl.value),
+        voice: voiceEl.value
+    });
+});
+
+document.getElementById('prevBtn').addEventListener('click', function () {
+    if (!currentNarrator) return;
+    currentNarrator.skipPrevious();
+});
+
+document.getElementById('nextBtn').addEventListener('click', function () {
+    if (!currentNarrator) return;
+    currentNarrator.skipNext();
+});
+
+document.getElementById('stopBtn').addEventListener('click', function () {
+    if (!currentNarrator) return;
+    currentNarrator.stop();
+});
+
+document.getElementById('playBtn').addEventListener('click', async function () {
+    if (!currentNarrator) return;
+    await currentNarrator.start({
+        rate: parseFloat(rateEl.value),
+        voice: voiceEl.value
+    });
+});
+</script>
+</body>
+</html>
