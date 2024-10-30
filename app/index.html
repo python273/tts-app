@@ -205,7 +205,7 @@ function updateVoices() {
         voiceEl.appendChild(opt);
     }
 
-    const savedVoice = localStorage.getItem('voice');
+    const savedVoice = localStorage.getItem('voice') || 'urn:moz-tts:osx:com.apple.speech.synthesis.voice.Alex';
     const voice = voices.find(i => i.voiceURI === savedVoice);
     if (voice) {
         voiceEl.value = savedVoice;
@@ -230,7 +230,7 @@ voiceEl.addEventListener('change', () => {
     }
 });
 
-rateEl.value = localStorage.getItem('rate') || '2';
+rateEl.value = localStorage.getItem('rate') || '1.1';
 rateEl.addEventListener('change', () => {
     localStorage.setItem('rate', rateEl.value);
     if (currentNarrator) {

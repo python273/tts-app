@@ -34,7 +34,22 @@ Narrator.prototype = {
         // For example, paragraphs. But nested anchors and other elements
         // are not interesting since their text already appears in their
         // parent's textContent.
+
         acceptNode(node) {
+          const r = this._acceptNode(node);
+          console.log(node, r);
+          return r;
+        },
+        _acceptNode(node) {
+          const technicalTags = ['SCRIPT', 'STYLE', 'LINK', 'META', 'NOSCRIPT', 'TEMPLATE', 'CANVAS', 'SVG', 'OBJECT', 'EMBED', 'APPLET'];
+          if (technicalTags.includes(node.tagName)) {
+            return nf.FILTER_REJECT;
+          }
+
+          if (node.closest('.narrator-skip')) {
+            return nf.FILTER_REJECT;
+          }
+
           if (this._matches.has(node.parentNode)) {
             // Reject sub-trees of accepted nodes.
             return nf.FILTER_REJECT;
@@ -331,6 +346,7 @@ Highlighter.prototype = {
     for (let i = 0; i < rangeRects.length; i++) {
       let r = rangeRects[i];
       let node = nodes[i];
+      if (!node) continue;
 
       let style = Object.assign(
         {
